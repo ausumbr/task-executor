@@ -11,71 +11,63 @@ namespace TaskExecutor.Core.Tests
 {
     public class TaskExecutorTests
     {
-        [Fact]
-        public void GivenTaskExecutorShouldNotWaitForFreeSlot()
+        private const int MAX_PARALLEL_TAKS = 100;
+
+        public TaskExecutorTests()
         {
+            ThreadPool.SetMinThreads(250, 250);
+        }
+        
+        [Fact]
+        public void GivenTaskExecutorShouldExecuteCapacityInParallel()
+        {
+            var count = 0;
+            var taskExecutor = new TaskExecutor(MAX_PARALLEL_TAKS);
+
             Action action = () =>
             {
-                using var taskExecutor = new TaskExecutor(1)
+                for (var i = 0; i < MAX_PARALLEL_TAKS; i++)
                 {
-                    new Task(() => Task.Delay(100).Wait()),
-                    new Task(() => Task.Delay(100).Wait()),
-                    new Task(() => Task.Delay(100).Wait()),
-                    new Task(() => Task.Delay(100).Wait()),
-                    new Task(() => Task.Delay(100).Wait()),
-                    new Task(() => Task.Delay(1000).Wait())
-                };
-
+                    taskExecutor.Execute(() =>
+                    {
+                        Interlocked.Increment(ref count);
+                        Task.Delay(TimeSpan.FromSeconds(1)).GetAwaiter().GetResult();
+                    });
+                }
             };
-
-            action.ExecutionTimeOf(s => s.Invoke()).Should().BeLessThan(TimeSpan.FromMilliseconds(20));
-        }
-
-        [Fact]
-        public void GivenTaskExecutorShouldFailWhenAddARunningTask()
-        {
-            var taskExecutor = new TaskExecutor(1);
             
-            Action action = () => taskExecutor.Add(Task.Delay(10));
-            
-            action.Should().Throw<InvalidOperationException>();
+            action.ExecutionTime().Should().BeLessOrEqualTo(TimeSpan.FromMilliseconds(10));
+            Task.Delay(100).Wait();
+            count.Should().Be(MAX_PARALLEL_TAKS);
         }
-
+        
         [Fact]
-        public void GivenTaskExecutorShouldExecuteAnActionInParallel()
+        public void GivenTaskExecutorWhenFullCapacityShouldEnqueueTask()
         {
-            using var taskExecutor = new TaskExecutor(1);
-            taskExecutor.ExecutionTimeOf(t => t.Execute(() => Task.Delay(1000).Wait()))
-                .Should()
-                .BeLessThan(TimeSpan.FromMilliseconds(10));
-            
-        }
-
-        [Fact]
-        public async Task GivenTaskExecutorShouldAddTaskExecutor()
-        {
-            var taskExecutor = new TaskExecutor(5);
-            var addTaskExecutor = new List<Task>(); 
-            for (var i = 0; i < 10; i++)
+            var taskExecutor = new TaskExecutor(MAX_PARALLEL_TAKS);
+            for (var i = 0; i < MAX_PARALLEL_TAKS * 2; i++)
             {
-                addTaskExecutor.Add(Task.Factory.StartNew(() => taskExecutor.Add(new Task(() => Task.Delay(100).Wait()))));
+                taskExecutor.Add(new Task(() => Task.Delay(100).Wait()));
             }
-            await Task.WhenAll(addTaskExecutor);
-            await Task.Delay(500);
-            taskExecutor.Count().Should().Be(0);
+            taskExecutor.Count.Should().Be(MAX_PARALLEL_TAKS * 2);
         }
 
         [Fact]
         public void GivenTaskExecutorWhenDisposeShouldWaitTaskExecutorExecutions()
         {
+            ThreadPool.SetMinThreads(MAX_PARALLEL_TAKS + 20, MAX_PARALLEL_TAKS + 20);
             var value = 0;
-            var taskExecutor = new TaskExecutor(500);
-            for (var i = 0; i < 1000; i++)
+            var taskExecutor = new TaskExecutor(MAX_PARALLEL_TAKS);
+            for (var i = 0; i < MAX_PARALLEL_TAKS * 2; i++)
             {
-                taskExecutor.Add(new Task(() => Interlocked.Increment(ref value)));
+                taskExecutor.Add(new Task(() =>
+                {
+                    Interlocked.Increment(ref value);
+                    Task.Delay(100).Wait();
+                }));
             }
             taskExecutor.Dispose();
-            value.Should().Be(1000);
+            value.Should().Be(MAX_PARALLEL_TAKS * 2);
         }
 
         [Fact]
@@ -84,13 +76,6 @@ namespace TaskExecutor.Core.Tests
             var taskExecutor = new TaskExecutor(0);
             taskExecutor.Dispose();
             taskExecutor.Invoking(t => t.Dispose()).Should().NotThrow();
-        }
-
-        [Fact]
-        public void GivenTaskExecutorShouldAbleToGetEnumerator()
-        {
-            IEnumerable taskExecutor = new TaskExecutor(0);
-            taskExecutor.GetEnumerator().Should().NotBeNull();
         }
     }
 }

@@ -9,19 +9,20 @@ using System.Threading.Tasks;
 
 namespace TaskExecutor.Core
 {
-    public class TaskExecutor : IEnumerable<Task>, IDisposable
+    public class TaskExecutor : ITaskExecutor
     {
         const int DISPOSE_WAIT_IN_SECONDS = 10;
         private bool _disposed;
         private readonly int _capacity;
-        private ConcurrentQueue<Task> _tasks = new ConcurrentQueue<Task>();
-        private int _isRunningCount;
-        
+        private readonly ConcurrentQueue<Task> _waitingTasks = new ConcurrentQueue<Task>();
+        private int _isRunning;
 
         public TaskExecutor(int capacity)
         {
             _capacity = capacity;
         }
+        
+        public int Count => _isRunning + _waitingTasks.Count;
 
         public void Execute(Action action)
         {
@@ -37,15 +38,16 @@ namespace TaskExecutor.Core
             
             task.ContinueWith(t =>
             {
-                Interlocked.Decrement(ref _isRunningCount);
-                if (!_tasks.TryDequeue(out var dequeuedTask)) return;
+                Interlocked.Decrement(ref _isRunning);
+                
+                if (!_waitingTasks.TryDequeue(out var dequeuedTask)) return;
                 
                 StartTask(dequeuedTask);
             });
 
-            if (_isRunningCount >= _capacity)
+            if (_isRunning >= _capacity)
             {
-                _tasks.Enqueue(task);
+                _waitingTasks.Enqueue(task);
                 return;
             }
             
@@ -73,38 +75,25 @@ namespace TaskExecutor.Core
             if (disposing)
             {
                 ExecuteAllTasks();
-                _tasks = null;
             }
 
             _disposed = true;
         }
 
-        public IEnumerator<Task> GetEnumerator()
-        {
-            return _tasks.GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
-
         private void StartTask(Task task)
         {
+            Interlocked.Increment(ref _isRunning);
             task.Start();
-            Interlocked.Increment(ref _isRunningCount);
         }
 
         private void ExecuteAllTasks()
         {
-            var tasks = new List<Task>(_tasks.Count);
-            while (!_tasks.IsEmpty)
+            var tasks = new List<Task>(_waitingTasks.Count);
+            while (!_waitingTasks.IsEmpty)
             {
-                if (_tasks.TryDequeue(out var t))
-                {
-                    t.Start();
-                    tasks.Add(t);
-                }
+                if (!_waitingTasks.TryDequeue(out var t)) continue;
+                t.Start();
+                tasks.Add(t);
             }
 
             Task.WaitAny(
