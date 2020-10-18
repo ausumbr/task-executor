@@ -2,6 +2,9 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <Title>Task Executor</Title>
+    <PackageProjectUrl>https://github.com/tiagor87/task-executor</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/tiagor87/task-executor</RepositoryUrl>
   </PropertyGroup>
 
 </Project>
