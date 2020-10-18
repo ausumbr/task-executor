@@ -16,7 +16,16 @@ pool:
 stages:
   - stage: Build
     jobs:
-      - job:
+      - job: CheckVersion
+        variables:
+          version: $[format('v{0}.{1}.{2}', variables['version.major'], variables['version.minor'], variables['version.patch'])]
+        steps:
+          - bash: |
+              echo "##vso[build.updatebuildnumber]$(version)"
+              echo "Version $(version) generated"
+            displayName: Check Version Number
+            name: GenerateVersion
+      - job: Analyse
         steps:
           - task: SonarCloudPrepare@1
             displayName: 'Prepare analysis on SonarCloud'
@@ -63,15 +72,6 @@ stages:
             inputs:
               codeCoverageTool: 'cobertura'
               summaryFileLocation: $(Build.SourcesDirectory)/tests/Cobertura.xml
-      - job:
-        variables:
-          version: $[format('v{0}.{1}.{2}', variables['version_major'], variables['version_minor'], variables['version_patch'])]
-        steps:
-          - bash: |
-              echo "##vso[build.updatebuildnumber]$(version)"
-              echo "Version $(version) generated"
-            displayName: Check Version Number
-            name: GenerateVersion
 
   - stage: Deploying
     condition: succeeded()
