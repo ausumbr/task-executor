@@ -77,5 +77,17 @@ namespace TaskExecutor.Core.Tests
             taskExecutor.Dispose();
             taskExecutor.Invoking(t => t.Dispose()).Should().NotThrow();
         }
+
+        [Fact]
+        public void GivenTaskExecutorWhenAddWithRunningTaskShouldFail()
+        {
+            var taskExecutor = new TaskExecutor(10);
+            var task = new Task(() => {});
+            task.Start();
+            
+            Action action = () => taskExecutor.Add(task);
+            
+            action.Should().Throw<InvalidOperationException>();
+        }
     }
 }

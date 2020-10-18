@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -54,6 +55,7 @@ namespace TaskExecutor.Core
             StartTask(task);
         }
 
+        [ExcludeFromCodeCoverage]
         ~TaskExecutor()
         {
             Dispose(false);
@@ -89,9 +91,8 @@ namespace TaskExecutor.Core
         private void ExecuteAllTasks()
         {
             var tasks = new List<Task>(_waitingTasks.Count);
-            while (!_waitingTasks.IsEmpty)
+            while (_waitingTasks.TryDequeue(out var t))
             {
-                if (!_waitingTasks.TryDequeue(out var t)) continue;
                 t.Start();
                 tasks.Add(t);
             }
