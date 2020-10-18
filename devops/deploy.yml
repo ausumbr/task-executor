@@ -1,0 +1,115 @@
+﻿variables:
+  sonar.projectKey: 'tiagor87_task-executor'
+  version_major: 0
+  version_minor: 0
+  version_patch: $[counter(format('{0}.{1}', variables['version_major'], variables['version_minor']), 1)]
+
+trigger:
+  batch: true
+  branches:
+    include:
+      - 'master'
+      
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+  - stage: Build
+    jobs:
+      - job:
+        steps:
+          - task: SonarCloudPrepare@1
+            displayName: 'Prepare analysis on SonarCloud'
+            inputs:
+              SonarCloud: SonarCloud
+              organization: 'tiagor87-github'
+              projectKey: '$(sonar.projectKey)'
+              projectName: '$(Build.DefinitionName)'
+              projectVersion: '$(version.major).$(version.minor).$(version.patch)'
+              extraProperties: |
+                sonar.exclusions=**/lib/**,**/obj/**,**/*.dll,**/tests/**
+                sonar.cs.opencover.reportsPaths=$(Build.SourcesDirectory)/tests/**/coverage.opencover.xml
+                sonar.cs.vstest.reportsPaths=$(Agent.TempDirectory)/*.trx
+          - task: DotNetCoreCLI@2
+            displayName: 'Build'
+            inputs:
+              projects: '**/*.csproj'
+              arguments: '--configuration Release -p:Version=$(version.major).$(version.minor).$(version.patch)'
+              verbosityRestore: minimal
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Test'
+            inputs:
+              command: test
+              projects: 'tests/**/*.csproj'
+              arguments: '--no-build --configuration Release -p:CollectCoverage=true -p:CoverletOutputFormat=opencover'
+
+          - task: SonarCloudAnalyze@1
+            displayName: 'Run Code Analysis'
+
+          - task: SonarCloudPublish@1
+            displayName: 'Publish Quality Gate Result'
+
+          - task: reportgenerator@4
+            displayName: ReportGenerator
+            inputs:
+              reports: 'tests/Core/coverage.opencover.xml'
+              targetdir: 'tests'
+              reporttypes: 'Cobertura;'
+              sourcedirs: 'src'
+
+          - task: PublishCodeCoverageResults@1
+            displayName: 'Publish Coverage Results'
+            inputs:
+              codeCoverageTool: 'cobertura'
+              summaryFileLocation: $(Build.SourcesDirectory)/tests/Cobertura.xml
+              
+      - job: CheckVersion
+          variables:
+            version: $[format('v{0}.{1}.{2}', variables['version_major'], variables['version_minor'], variables['version_patch'])]
+          steps:
+            - bash: |
+                echo "##vso[build.updatebuildnumber]$(version)"
+                echo "Version $(version) generated"
+              displayName: Check Version Number
+              name: GenerateVersion
+
+  - stage: Deploying
+    condition: succeeded()
+    jobs:
+      - job: Packing
+        steps:
+          - task: DotNetCoreCLI@2
+            inputs:
+              command: pack
+              packagesToPack: 'src/**/*.csproj'
+              configurationToPack: 'Release'
+              versioningScheme: byBuildNumber
+              verbosityRestore: minimal
+              verbosityPack: minimal
+
+          - task: PublishBuildArtifacts@1
+            condition: eq(variables['Build.SourceBranch'], 'refs/heads/master')
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+              contents: '**/*.nupkg'
+              artifactName: 'drop'
+
+      - job: Publishing
+        dependsOn: Packing
+        steps:
+          - checkout: none
+          - task: DownloadBuildArtifacts@0
+            displayName: 'Download Package Artifact'
+            inputs:
+              artifactName: 'drop'
+              itemPattern: '**/*.nupkg'
+              downloadPath: '$(System.ArtifactsDirectory)'
+
+          - task: NuGetCommand@2
+            displayName: 'Publish on Nuget'
+            inputs:
+              command: push
+              packagesToPush: '$(System.ArtifactsDirectory)/drop/*.nupkg'
+              nuGetFeedType: external
+              publishFeedCredentials: Nuget
