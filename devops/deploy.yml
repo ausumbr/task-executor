@@ -39,7 +39,7 @@ stages:
               projectVersion: '$(version.major).$(version.minor).$(version.patch)'
               extraProperties: |
                 sonar.exclusions=**/lib/**,**/obj/**,**/*.dll,**/tests/**
-                sonar.cs.opencover.reportsPaths=$(Build.SourcesDirectory)/tests/**/coverage.opencover.xml
+                sonar.cs.opencover.reportsPaths=$(Build.SourcesDirectory)/tests/results/**/coverage.opencover.xml
                 sonar.cs.vstest.reportsPaths=$(Agent.TempDirectory)/*.trx
           - task: DotNetCoreCLI@2
             displayName: 'Build'
@@ -53,7 +53,7 @@ stages:
             inputs:
               command: test
               projects: 'tests/**/*.csproj'
-              arguments: '--no-build --configuration Release --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=json,cobertura,lcov,teamcity,opencover'
+              arguments: '-r tests/results --no-build --configuration Release --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=json,cobertura,lcov,teamcity,opencover'
 
           - task: SonarCloudAnalyze@1
             displayName: 'Run Code Analysis'
@@ -65,7 +65,7 @@ stages:
             displayName: 'Publish Coverage Results'
             inputs:
               codeCoverageTool: 'cobertura'
-              summaryFileLocation: $(Build.SourcesDirectory)/tests/**/coverage.cobertura.xml
+              summaryFileLocation: $(Build.SourcesDirectory)/tests/results/**/coverage.cobertura.xml
 
   - stage: Deploying
     condition: succeeded()
