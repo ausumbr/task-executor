@@ -5,6 +5,7 @@
     <Title>Task Executor</Title>
     <PackageProjectUrl>https://github.com/tiagor87/task-executor</PackageProjectUrl>
     <RepositoryUrl>https://github.com/tiagor87/task-executor</RepositoryUrl>
+    <ProjectGuid>{D6CFF7A8-5BD8-44BC-B7CF-E31C3DA0AFB6}</ProjectGuid>
   </PropertyGroup>
 
 </Project>

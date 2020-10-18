@@ -26,6 +26,8 @@ stages:
             displayName: Check Version Number
             name: GenerateVersion
       - job: Analyse
+        dependsOn:
+          - CheckVersion
         steps:
           - task: SonarCloudPrepare@1
             displayName: 'Prepare analysis on SonarCloud'
