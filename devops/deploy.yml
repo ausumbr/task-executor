@@ -1,8 +1,8 @@
-﻿variables:
+variables:
   sonar.projectKey: 'tiagor87_task-executor'
-  version_major: 0
-  version_minor: 0
-  version_patch: $[counter(format('{0}.{1}', variables['version_major'], variables['version_minor']), 1)]
+  version.major: 0
+  version.minor: 0
+  version.patch: $[counter(format('{0}.{1}', variables['version.major'], variables['version.minor']), 1)]
 
 trigger:
   batch: true
@@ -63,16 +63,15 @@ stages:
             inputs:
               codeCoverageTool: 'cobertura'
               summaryFileLocation: $(Build.SourcesDirectory)/tests/Cobertura.xml
-              
-      - job: CheckVersion
-          variables:
-            version: $[format('v{0}.{1}.{2}', variables['version_major'], variables['version_minor'], variables['version_patch'])]
-          steps:
-            - bash: |
-                echo "##vso[build.updatebuildnumber]$(version)"
-                echo "Version $(version) generated"
-              displayName: Check Version Number
-              name: GenerateVersion
+      - job:
+        variables:
+          version: $[format('v{0}.{1}.{2}', variables['version_major'], variables['version_minor'], variables['version_patch'])]
+        steps:
+          - bash: |
+              echo "##vso[build.updatebuildnumber]$(version)"
+              echo "Version $(version) generated"
+            displayName: Check Version Number
+            name: GenerateVersion
 
   - stage: Deploying
     condition: succeeded()
@@ -92,7 +91,6 @@ stages:
             condition: eq(variables['Build.SourceBranch'], 'refs/heads/master')
             inputs:
               PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-              contents: '**/*.nupkg'
               artifactName: 'drop'
 
       - job: Publishing
