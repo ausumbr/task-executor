@@ -12,15 +12,17 @@ namespace TaskExecutor.Core
 {
     public class TaskExecutor : ITaskExecutor
     {
-        const int DISPOSE_WAIT_IN_SECONDS = 10;
+        private const int DISPOSE_WAIT_IN_SECONDS = 10;
         private bool _disposed;
         private readonly int _capacity;
+        private readonly ILogger _logger;
         private readonly ConcurrentQueue<Task> _waitingTasks = new ConcurrentQueue<Task>();
         private int _isRunning;
 
-        public TaskExecutor(int capacity)
+        public TaskExecutor(int capacity, ILogger logger = null)
         {
             _capacity = capacity;
+            _logger = logger;
         }
         
         public int Count => _isRunning + _waitingTasks.Count;
@@ -40,6 +42,7 @@ namespace TaskExecutor.Core
             task.ContinueWith(t =>
             {
                 Interlocked.Decrement(ref _isRunning);
+                if (t.IsFaulted) _logger?.Error(t.Exception?.InnerException);
                 
                 if (!_waitingTasks.TryDequeue(out var dequeuedTask)) return;
                 

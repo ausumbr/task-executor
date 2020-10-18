@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Moq;
 using Xunit;
 
 namespace TaskExecutor.Core.Tests
@@ -88,6 +89,23 @@ namespace TaskExecutor.Core.Tests
             Action action = () => taskExecutor.Add(task);
             
             action.Should().Throw<InvalidOperationException>();
+        }
+
+        [Fact]
+        public void GivenTaskExecutorWhenAnErrorHappensShouldLogError()
+        {
+            var autoResetEvent = new AutoResetEvent(false);
+            var logger = new Mock<ILogger>();
+            logger.Setup(x => x.Error(It.IsAny<NotImplementedException>()))
+                .Callback((Exception _) => autoResetEvent.Set())
+                .Verifiable();
+            
+            var task = new Task(() => throw new NotImplementedException());
+            var taskExecutor = new TaskExecutor(1, logger.Object);
+            taskExecutor.Add(task);
+            autoResetEvent.WaitOne();
+            
+            logger.VerifyAll();
         }
     }
 }
